@@ -14,7 +14,7 @@ Start a new personal Claude session with remote control enabled. Args: a session
 2. **Determine the launcher**:
    - If `--tmux` was passed: use **tmux** (with remote control).
    - If `--cmux` was passed: use **cmux** (without remote control).
-   - Otherwise: read `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` and check `restrictions.allow_remote_control.allowed`. If `true`, use **tmux**; if `false` or the file is absent, use **cmux**.
+   - Otherwise: read `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` and check `restrictions.allow_remote_control.allowed`. If `true`, use **tmux**; if `false`, use **cmux**. If the file is absent, use **tmux**.
 
 3. **Launch the session**, passing the **warmup prompt** (below) as the final argument so the session's first action is to build the working directory's test prerequisites (if that repo provides a warmup hook).
 

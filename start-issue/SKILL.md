@@ -30,7 +30,7 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
 6. **Determine the launcher**:
    - If `--tmux` was passed: use **tmux** (with remote control).
    - If `--cmux` was passed: use **cmux** (without remote control).
-   - Otherwise: read `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` and check `restrictions.allow_remote_control.allowed`. If `true`, use **tmux**; if `false` or the file is absent, use **cmux**.
+   - Otherwise: read `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` and check `restrictions.allow_remote_control.allowed`. If `true`, use **tmux**; if `false`, use **cmux**. If the file is absent, use **tmux**.
 
 7. **Derive the session name**: use `<repo>-<branch-name>` if the total length is ≤40 characters, otherwise fall back to `<repo>-<number>`.
 
