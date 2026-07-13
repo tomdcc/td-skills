@@ -27,7 +27,7 @@ environment = [
 ]
 ```
 
-Add a profile with `aoe profile create <name>` then write its `config.toml`. AoE requires ≥1 profile to always exist (you cannot delete the last one; `rename` instead).
+Add a profile with `aoe profile create <name>` then write its `config.toml` — or run `setup-profiles.sh` (in this skill dir), which does exactly this for the account table at its top and is idempotent. AoE requires ≥1 profile to always exist (you cannot delete the last one; `rename` instead).
 
 ## The serve daemon (single, global)
 
@@ -50,7 +50,7 @@ Leave it running across sessions; do not stop it on exit. `aoe serve --stop` sto
 
 Control the agent: `launchctl kickstart -k gui/$(id -u)/com.tomdunstan.aoe-serve` (restart), `launchctl bootout gui/$(id -u)/com.tomdunstan.aoe-serve` (disable this session). It runs `aoe serve` in the **foreground** under launchd (not `--daemon`) so KeepAlive can supervise it; `KeepAlive.SuccessfulExit=false` restarts on crash but leaves a deliberate `aoe serve --stop` down. Logs: `~/Library/Logs/aoe-serve.{out,err}.log`.
 
-**Bringing up a fresh machine:** (1) `brew install aoe tmux`; (2) `./install-daemon.sh`; (3) create the per-account profiles (below) — the daemon alone is inert without them.
+**Bringing up a fresh machine:** (1) `brew install aoe tmux`; (2) `./install-daemon.sh`; (3) `./setup-profiles.sh --verify` to create the per-account profiles (edit its `PROFILES` table if the accounts differ) — the daemon alone is inert without them; (4) authenticate each account into its config dir (`claude` login / copy credentials).
 
 ## Resolve the profile (= account)
 
