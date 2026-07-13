@@ -1,6 +1,6 @@
 ---
 name: start-issue
-description: Start a new worktree and Claude session for a GitHub issue. Defaults to tmux+remote-control if the account supports it, cmux otherwise. Use when the user specifies an issue number to work on and wants a Claude session spun up in a new worktree.
+description: Start a new worktree and Claude session for a GitHub issue. Defaults to Agent of Empires (aoe) when installed, else falls back to tmux+remote-control / cmux by account policy. Native --remote-control is passed only for accounts that allow it. Use when the user specifies an issue number to work on and wants a Claude session spun up in a new worktree.
 ---
 
 # Start Issue
@@ -43,14 +43,25 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
    ```
    Capture the output — it is the worktree path.
 
-7. **Determine the launcher**:
-   - If `--tmux` was passed: use **tmux** (with remote control).
-   - If `--cmux` was passed: use **cmux** (without remote control).
-   - Otherwise: read `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` and check `restrictions.allow_remote_control.allowed`. If `true`, use **tmux**; if `false`, use **cmux**. If the file is absent, use **tmux**.
+7. **Determine the launcher** (precedence: explicit flag → AoE default → tmux/cmux fallback):
+   - First compute `allow_remote` = `restrictions.allow_remote_control.allowed` from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` (**true when the file is absent**). This gates Claude's native `--remote-control` in every branch below.
+   - Explicit override wins: `--aoe` forces AoE; `--tmux` forces tmux; `--cmux` forces cmux; `--no-aoe` skips AoE and applies the fallback rule.
+   - **Default = AoE** when the `aoe` binary is installed (`command -v aoe`). Under AoE, pass `--remote-control` **only if `allow_remote`** — omit it for the remote-control-disabled account.
+   - **Fallback** (no `aoe`, or `--no-aoe`): the original behaviour — `allow_remote` true → **tmux** (with `--remote-control`); false → **cmux** (no `--remote-control`).
 
 8. **Derive the session name**: use `<repo>-<branch-name>` if the total length is ≤40 characters, otherwise fall back to `<repo>-<number>`.
 
-9. **Launch a Claude session** according to the launcher. Pass the **initial prompt** (below) as the final argument. **Substitute the real issue number for `<number>`** in the prompt.
+9. **Launch a Claude session** according to the launcher, delivering the **initial prompt** (below). **Substitute the real issue number for `<number>`** in the prompt.
+
+   **AoE** (default when installed — see the `aoe-session` skill for full detail and one-time profile setup): resolve the profile for the current account (match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` to a profile's `CLAUDE_CONFIG_DIR`, or `$AGENT_OF_EMPIRES_PROFILE`, or `--profile`), ensure the single daemon is up, then:
+   ```
+   if aoe url >/dev/null 2>&1; then :; else aoe serve --daemon; fi
+   aoe add "<worktree-path>" -t "<session-name>" -p "<profile>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"}
+   aoe session start "<session-name>" -p "<profile>"
+   # if a first-run trust prompt is showing (aoe session capture "<session-name>"), dismiss it before sending:
+   aoe send "<session-name>" "<INITIAL-PROMPT>" -p "<profile>"
+   ```
+   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**. Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Pass the existing worktree as the positional path — do **not** add `-w` (that would make AoE create its own worktree). Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```
@@ -81,5 +92,6 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
     - The branch name
     - The worktree path
     - How the step-3 context was handled (issue updated / folded into the initial prompt / proceeded without / — if nothing relevant was found, omit)
+    - AoE: the profile/account used, whether `--remote-control` was passed, the dashboard URL (`aoe url`), and how to attach: `tmux attach -t aoe_<session-name>_<idprefix>` or `aoe`
     - tmux: the session name and how to attach: `tmux attach -t <session-name>`
     - cmux: the session name
