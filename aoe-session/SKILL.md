@@ -39,6 +39,19 @@ aoe url            # prints the dashboard URL; exits non-zero when down
 ```
 Leave it running across sessions; do not stop it on exit. `aoe serve --stop` stops it, `aoe killall` tears down everything.
 
+### Autostart at login (per machine)
+
+`install-daemon.sh` (in this skill dir) installs a launchd LaunchAgent (`~/Library/LaunchAgents/com.tomdunstan.aoe-serve.plist`) that starts the daemon at login and restarts it on crash. It resolves machine-specific paths at runtime (Homebrew prefix, the real `claude` bin dir avoiding cmux shims, `$HOME`), so it is portable across macOS machines and re-runnable:
+
+```sh
+./install-daemon.sh                 # install + load (port 8080; AOE_SERVE_PORT overrides)
+./install-daemon.sh --uninstall     # bootout + remove the plist
+```
+
+Control the agent: `launchctl kickstart -k gui/$(id -u)/com.tomdunstan.aoe-serve` (restart), `launchctl bootout gui/$(id -u)/com.tomdunstan.aoe-serve` (disable this session). It runs `aoe serve` in the **foreground** under launchd (not `--daemon`) so KeepAlive can supervise it; `KeepAlive.SuccessfulExit=false` restarts on crash but leaves a deliberate `aoe serve --stop` down. Logs: `~/Library/Logs/aoe-serve.{out,err}.log`.
+
+**Bringing up a fresh machine:** (1) `brew install aoe tmux`; (2) `./install-daemon.sh`; (3) create the per-account profiles (below) — the daemon alone is inert without them.
+
 ## Resolve the profile (= account)
 
 Precedence: explicit `--profile <name>` → else `$AGENT_OF_EMPIRES_PROFILE` if set (auto when the *launching* session was itself AoE-started, via the self-reference above) → else match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` against each profile's `config.toml` `CLAUDE_CONFIG_DIR`. No match → tell the user to create a profile (setup above).
