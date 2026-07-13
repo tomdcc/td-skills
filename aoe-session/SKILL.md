@@ -11,7 +11,9 @@ Verified on this machine, **aoe 1.12.1**, host (non-sandbox) sessions.
 
 ## One-time setup: one aoe profile per Claude account
 
-A profile's `config.toml` `environment` list is injected onto the host agent's launch command, so it carries the account's `CLAUDE_CONFIG_DIR` (this replaces the tmux skills' `-e CLAUDE_CONFIG_DIR="$CLAUDE_CONFIG_DIR"`). Values are **literal absolute paths** (no `~`, `$HOME`, `$VAR`). Already created on this machine:
+A profile's `config.toml` `environment` list is injected onto the host agent's launch command, so it carries the account's `CLAUDE_CONFIG_DIR` (this replaces the tmux skills' `-e CLAUDE_CONFIG_DIR="$CLAUDE_CONFIG_DIR"`). Values are **literal absolute paths** (no `~`, `$HOME`, `$VAR`).
+
+**The live source of truth is `aoe profile list` — the profile layout is per-machine, not fixed.** The table below is the **creator machine's** layout (illustrative). A host whose accounts differ captures its own layout in a machine-local file, `~/.agent-of-empires/skill-profiles.conf` (sourced by `setup-profiles.sh`, kept out of this repo); e.g. a single-account workstation whose login lives in the default `~/.claude` sets `PROFILES=( "personal=$HOME/.claude" )` there.
 
 | Profile | CLAUDE_CONFIG_DIR | Remote control |
 |---|---|---|

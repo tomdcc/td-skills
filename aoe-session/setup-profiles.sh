@@ -17,13 +17,27 @@
 # skills decide that dynamically from each account's policy-limits.json.
 set -euo pipefail
 
-# --- EDIT THIS for the machine's accounts: "profile_name=CLAUDE_CONFIG_DIR" ---
-# Absolute paths (no ~); $HOME expands at runtime.
+# --- Default account table: "profile_name=CLAUDE_CONFIG_DIR" -----------------
+# Absolute paths (no ~); $HOME expands at runtime. These are the CREATOR
+# machine's accounts; a host whose accounts differ should NOT edit them here
+# (that would push machine-specific values through the shared repo). Instead
+# drop a machine-local override file — see below.
 PROFILES=(
   "personal=$HOME/.claude-personal"
   "work=$HOME/.claude"
 )
 DEFAULT_PROFILE="personal"
+
+# Machine-local override (kept OUT of the shared repo): if this file exists it
+# is sourced here and may redefine PROFILES / DEFAULT_PROFILE for this host.
+# e.g. a single-account workstation whose login lives in the default ~/.claude:
+#   PROFILES=( "personal=$HOME/.claude" ); DEFAULT_PROFILE="personal"
+LOCAL_CONF="${AOE_SKILL_PROFILES_CONF:-$HOME/.agent-of-empires/skill-profiles.conf}"
+if [ -f "$LOCAL_CONF" ]; then
+  # shellcheck disable=SC1090
+  . "$LOCAL_CONF"
+  echo "using machine-local profile table: $LOCAL_CONF"
+fi
 # -----------------------------------------------------------------------------
 
 command -v aoe >/dev/null || { echo "ERROR: aoe not found. Install with: brew install aoe" >&2; exit 1; }
