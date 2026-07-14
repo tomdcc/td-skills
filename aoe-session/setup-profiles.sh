@@ -30,8 +30,10 @@ DEFAULT_PROFILE="personal"
 
 # Machine-local override (kept OUT of the shared repo): if this file exists it
 # is sourced here and may redefine PROFILES / DEFAULT_PROFILE for this host.
-# e.g. a single-account workstation whose login lives in the default ~/.claude:
-#   PROFILES=( "personal=$HOME/.claude" ); DEFAULT_PROFILE="personal"
+# Use the value "default" for an account that uses Claude's default config
+# (~/.claude.json in HOME) — that omits CLAUDE_CONFIG_DIR (see the writer below).
+# e.g. a single-account workstation whose login is the default account:
+#   PROFILES=( "personal=default" ); DEFAULT_PROFILE="personal"
 LOCAL_CONF="${AOE_SKILL_PROFILES_CONF:-$HOME/.agent-of-empires/skill-profiles.conf}"
 if [ -f "$LOCAL_CONF" ]; then
   # shellcheck disable=SC1090
@@ -55,7 +57,23 @@ for entry in "${PROFILES[@]}"; do
   fi
 
   mkdir -p "$PROFILES_DIR/$name"
-  cat > "$PROFILES_DIR/$name/config.toml" <<EOF
+  if [ "$cfgdir" = "default" ] || [ -z "$cfgdir" ]; then
+    # DEFAULT-config account: do NOT set CLAUDE_CONFIG_DIR. Claude's default
+    # keeps the *config file* at ~/.claude.json (HOME) and the *data dir* at
+    # ~/.claude — a split no single CLAUDE_CONFIG_DIR reproduces. Setting it
+    # even to ~/.claude relocates the config file to ~/.claude/.claude.json (a
+    # different, empty file) and forces a re-login. So leave it unset.
+    cat > "$PROFILES_DIR/$name/config.toml" <<EOF
+# Managed by setup-profiles.sh — DEFAULT-config account (~/.claude.json in HOME);
+# CLAUDE_CONFIG_DIR is intentionally NOT set (see setup-profiles.sh).
+environment = [
+  "AGENT_OF_EMPIRES_PROFILE=$name",   # self-reference so nested aoe spawns inherit the account
+  "NODE_OPTIONS=",                    # blanks any inherited cmux --require shim
+]
+EOF
+    echo "  CLAUDE_CONFIG_DIR=(default; not set)"
+  else
+    cat > "$PROFILES_DIR/$name/config.toml" <<EOF
 # Managed by setup-profiles.sh — Claude account => CLAUDE_CONFIG_DIR mapping.
 environment = [
   "CLAUDE_CONFIG_DIR=$cfgdir",
@@ -63,8 +81,9 @@ environment = [
   "NODE_OPTIONS=",                     # blanks any inherited cmux --require shim
 ]
 EOF
-  echo "  CLAUDE_CONFIG_DIR=$cfgdir"
-  [ -d "$cfgdir" ] || echo "  WARNING: $cfgdir does not exist — that account is not set up on this machine yet." >&2
+    echo "  CLAUDE_CONFIG_DIR=$cfgdir"
+    [ -d "$cfgdir" ] || echo "  WARNING: $cfgdir does not exist — that account is not set up on this machine yet." >&2
+  fi
 done
 
 aoe profile default "$DEFAULT_PROFILE" >/dev/null

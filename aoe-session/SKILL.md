@@ -13,7 +13,9 @@ Verified on this machine, **aoe 1.12.1**, host (non-sandbox) sessions.
 
 A profile's `config.toml` `environment` list is injected onto the host agent's launch command, so it carries the account's `CLAUDE_CONFIG_DIR` (this replaces the tmux skills' `-e CLAUDE_CONFIG_DIR="$CLAUDE_CONFIG_DIR"`). Values are **literal absolute paths** (no `~`, `$HOME`, `$VAR`).
 
-**The live source of truth is `aoe profile list` — the profile layout is per-machine, not fixed.** The table below is the **creator machine's** layout (illustrative). A host whose accounts differ captures its own layout in a machine-local file, `~/.agent-of-empires/skill-profiles.conf` (sourced by `setup-profiles.sh`, kept out of this repo); e.g. a single-account workstation whose login lives in the default `~/.claude` sets `PROFILES=( "personal=$HOME/.claude" )` there.
+**The live source of truth is `aoe profile list` — the profile layout is per-machine, not fixed.** The table below is the **creator machine's** layout (illustrative). A host whose accounts differ captures its own layout in a machine-local file, `~/.agent-of-empires/skill-profiles.conf` (sourced by `setup-profiles.sh`, kept out of this repo); e.g. a single-account workstation whose login is Claude's **default** account sets `PROFILES=( "personal=default" )` there (see the gotcha next).
+
+> **⚠️ The default account has NO `CLAUDE_CONFIG_DIR` — do not invent one.** Claude's default keeps the *config file* at `~/.claude.json` (in `$HOME`) but the *data dir* at `~/.claude` — a split that **no single `CLAUDE_CONFIG_DIR` value reproduces**. Setting `CLAUDE_CONFIG_DIR=~/.claude` relocates the config file to `~/.claude/.claude.json` (a *different*, empty file with no `oauthAccount`) → the session comes up **at the login/onboarding screen** even though credentials exist in the Keychain. So for an account that uses the default config, the profile must **omit** `CLAUDE_CONFIG_DIR` entirely (use the `default` value in `setup-profiles.sh` / the local conf). Only set `CLAUDE_CONFIG_DIR` for *non-default* accounts that genuinely live under an alternate dir (e.g. `~/.claude-personal`). Credentials themselves are read from the login Keychain in the daemon-spawned context — no file export needed.
 
 | Profile | CLAUDE_CONFIG_DIR | Remote control |
 |---|---|---|
@@ -52,11 +54,22 @@ Leave it running across sessions; do not stop it on exit. `aoe serve --stop` sto
 
 Control the agent: `launchctl kickstart -k gui/$(id -u)/com.tomdunstan.aoe-serve` (restart), `launchctl bootout gui/$(id -u)/com.tomdunstan.aoe-serve` (disable this session). It runs `aoe serve` in the **foreground** under launchd (not `--daemon`) so KeepAlive can supervise it; `KeepAlive.SuccessfulExit=false` restarts on crash but leaves a deliberate `aoe serve --stop` down. Logs: `~/Library/Logs/aoe-serve.{out,err}.log`.
 
-**Bringing up a fresh machine:** (1) `brew install aoe tmux`; (2) `./install-daemon.sh`; (3) `./setup-profiles.sh --verify` to create the per-account profiles (edit its `PROFILES` table if the accounts differ) — the daemon alone is inert without them; (4) authenticate each account into its config dir (`claude` login / copy credentials).
+### Standing session at login (per machine)
+
+`install-startup-session.sh` (in this skill dir) installs a per-machine LaunchAgent (`com.tomdunstan.aoe-session-<name>`) that, at each login, waits for the serve daemon then creates + starts one named session — aoe/tmux sessions don't survive a reboot, so it recreates it (idempotent: skipped if already present). The emitted runner + plist are machine-local (self-contained); only this installer is versioned.
+
+```sh
+./install-startup-session.sh <session-name> <directory> [profile]   # profile defaults to: personal
+./install-startup-session.sh --uninstall <session-name>
+```
+
+The **profile defaults to `personal`**, so each machine's standing session runs under that machine's `personal` account — the default-config account on a single-account host, or `~/.claude-personal` on a two-account host — no per-machine edit needed. The runner reads that profile's `CLAUDE_CONFIG_DIR` (or the default) to decide `--remote-control` from `policy-limits.json`, exactly like the launch flow. Pick a machine-identifying `<session-name>` (e.g. `imac-scratch`, `<host>-scratch`). The session comes up idle (no prompt); its cwd's first-run "trust this folder?" is a one-time confirm that then persists.
+
+**Bringing up a fresh machine:** (1) `brew install aoe tmux`; (2) `./install-daemon.sh`; (3) `./setup-profiles.sh --verify` to create the per-account profiles (drop a machine-local `~/.agent-of-empires/skill-profiles.conf` if the accounts differ from the default table — use `<name>=default` for the default-config account) — the daemon alone is inert without them; (4) authenticate each account (`claude` login; the default account's token lives in the login Keychain and is read directly); (5) `./install-startup-session.sh <host>-scratch "$HOME/scratch"` to add a standing scratch session under the `personal` profile.
 
 ## Resolve the profile (= account)
 
-Precedence: explicit `--profile <name>` → else `$AGENT_OF_EMPIRES_PROFILE` if set (auto when the *launching* session was itself AoE-started, via the self-reference above) → else match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` against each profile's `config.toml` `CLAUDE_CONFIG_DIR`. No match → tell the user to create a profile (setup above).
+Precedence: explicit `--profile <name>` → else `$AGENT_OF_EMPIRES_PROFILE` if set (auto when the *launching* session was itself AoE-started, via the self-reference above) → else match the launching session's config against each profile's `config.toml`: a profile **with** a `CLAUDE_CONFIG_DIR` matches when it equals `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`; a profile **without** one is the **default-config account** and matches when the launching session also has no `CLAUDE_CONFIG_DIR` set (`${CLAUDE_CONFIG_DIR:-}` empty). No match → tell the user to create a profile (setup above). On a single-account default-config host this resolves to that one profile.
 
 `allow_remote` = `restrictions.allow_remote_control.allowed` from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` (true when the file is absent). Pass Claude's native `--remote-control` **only when `allow_remote`**.
 
