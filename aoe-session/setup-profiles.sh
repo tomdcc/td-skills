@@ -24,7 +24,7 @@ set -euo pipefail
 # drop a machine-local override file — see below.
 PROFILES=(
   "personal=$HOME/.claude-personal"
-  "work=$HOME/.claude"
+  "work=default"
 )
 DEFAULT_PROFILE="personal"
 
@@ -58,20 +58,26 @@ for entry in "${PROFILES[@]}"; do
 
   mkdir -p "$PROFILES_DIR/$name"
   if [ "$cfgdir" = "default" ] || [ -z "$cfgdir" ]; then
-    # DEFAULT-config account: do NOT set CLAUDE_CONFIG_DIR. Claude's default
-    # keeps the *config file* at ~/.claude.json (HOME) and the *data dir* at
-    # ~/.claude — a split no single CLAUDE_CONFIG_DIR reproduces. Setting it
-    # even to ~/.claude relocates the config file to ~/.claude/.claude.json (a
-    # different, empty file) and forces a re-login. So leave it unset.
+    # DEFAULT-config account: force CLAUDE_CONFIG_DIR to EMPTY (not merely unset).
+    # aoe sessions inherit the tmux SERVER's global environment; if that server was
+    # started from a shell that exported CLAUDE_CONFIG_DIR (e.g. a cmux/Claude
+    # session on the shared default socket), merely OMITTING the var lets that stale
+    # value bleed through — the session then runs under the WRONG account. An
+    # explicit empty value overrides the leak, and claude treats empty as unset, so
+    # it uses the default ~/.claude.json config + ~/.claude data dir with creds from
+    # the login Keychain. Do NOT set it to ~/.claude: that relocates the config file
+    # to ~/.claude/.claude.json (a different, empty file) and forces onboarding.
     cat > "$PROFILES_DIR/$name/config.toml" <<EOF
-# Managed by setup-profiles.sh — DEFAULT-config account (~/.claude.json in HOME);
-# CLAUDE_CONFIG_DIR is intentionally NOT set (see setup-profiles.sh).
+# Managed by setup-profiles.sh — DEFAULT-config account (~/.claude.json in HOME).
+# CLAUDE_CONFIG_DIR is forced EMPTY to override any value leaked from the tmux
+# server's global env; claude treats empty as unset (see setup-profiles.sh).
 environment = [
+  "CLAUDE_CONFIG_DIR=",
   "AGENT_OF_EMPIRES_PROFILE=$name",   # self-reference so nested aoe spawns inherit the account
   "NODE_OPTIONS=",                    # blanks any inherited cmux --require shim
 ]
 EOF
-    echo "  CLAUDE_CONFIG_DIR=(default; not set)"
+    echo "  CLAUDE_CONFIG_DIR=(default; forced empty)"
   else
     cat > "$PROFILES_DIR/$name/config.toml" <<EOF
 # Managed by setup-profiles.sh — Claude account => CLAUDE_CONFIG_DIR mapping.
@@ -105,12 +111,15 @@ if [ "${1:-}" = "--verify" ]; then
   set +e
   for entry in "${PROFILES[@]}"; do
     name="${entry%%=*}"; cfgdir="${entry#*=}"; t="verify-$name"
+    # default-config account: CLAUDE_CONFIG_DIR is intentionally unset, so the
+    # probe should see it empty.
+    case "$cfgdir" in default|"") expect="" ;; *) expect="$cfgdir" ;; esac
     rm -f "$tmp/last.out"
     aoe add --scratch -t "$t" -p "$name" --cmd-override "$probe" </dev/null >/dev/null 2>&1
     aoe session start "$t" -p "$name" </dev/null >/dev/null 2>&1
     sleep 2
     got="$(cat "$tmp/last.out" 2>/dev/null || echo '<none>')"
-    if [ "$got" = "$cfgdir" ]; then echo "  ✓ $name -> $got"; else echo "  ✗ $name -> got '$got', expected '$cfgdir'"; fi
+    if [ "$got" = "$expect" ]; then echo "  ✓ $name -> ${got:-(default; CLAUDE_CONFIG_DIR unset)}"; else echo "  ✗ $name -> got '$got', expected '${expect:-(unset)}'"; fi
     aoe rm "$t" -p "$name" --purge </dev/null >/dev/null 2>&1
   done
   set -e
