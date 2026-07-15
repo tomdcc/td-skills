@@ -58,26 +58,30 @@ for entry in "${PROFILES[@]}"; do
 
   mkdir -p "$PROFILES_DIR/$name"
   if [ "$cfgdir" = "default" ] || [ -z "$cfgdir" ]; then
-    # DEFAULT-config account: force CLAUDE_CONFIG_DIR to EMPTY (not merely unset).
-    # aoe sessions inherit the tmux SERVER's global environment; if that server was
-    # started from a shell that exported CLAUDE_CONFIG_DIR (e.g. a cmux/Claude
-    # session on the shared default socket), merely OMITTING the var lets that stale
-    # value bleed through — the session then runs under the WRONG account. An
-    # explicit empty value overrides the leak, and claude treats empty as unset, so
-    # it uses the default ~/.claude.json config + ~/.claude data dir with creds from
-    # the login Keychain. Do NOT set it to ~/.claude: that relocates the config file
-    # to ~/.claude/.claude.json (a different, empty file) and forces onboarding.
+    # DEFAULT-config account: CLAUDE_CONFIG_DIR must be genuinely UNSET, so it is
+    # OMITTED from the environment list below (NOT set to ""). This claude build
+    # does NOT treat an empty string as unset: CLAUDE_CONFIG_DIR="" sends it to a
+    # bogus config dir and it fails to find conversations ("No conversation found"
+    # on --resume). Unset → claude uses the default ~/.claude.json config + ~/.claude
+    # data dir with creds from the login Keychain. Do NOT set it to ~/.claude
+    # either: that relocates the config file to ~/.claude/.claude.json (a
+    # different, empty file) and forces onboarding.
+    # Because aoe sessions inherit the tmux SERVER's global env, a stale
+    # CLAUDE_CONFIG_DIR leaked there (e.g. by a cmux/Claude session on the shared
+    # socket) would bleed through and run this profile under the WRONG account.
+    # Omitting relies on that global being clean — the block after the loop clears
+    # it, and --verify flags a leak that reappears later.
     cat > "$PROFILES_DIR/$name/config.toml" <<EOF
 # Managed by setup-profiles.sh — DEFAULT-config account (~/.claude.json in HOME).
-# CLAUDE_CONFIG_DIR is forced EMPTY to override any value leaked from the tmux
-# server's global env; claude treats empty as unset (see setup-profiles.sh).
+# CLAUDE_CONFIG_DIR is intentionally OMITTED (must be genuinely unset — this
+# claude build does NOT treat "" as unset). setup-profiles.sh keeps the tmux
+# server-global CLAUDE_CONFIG_DIR clear so nothing leaks in.
 environment = [
-  "CLAUDE_CONFIG_DIR=",
   "AGENT_OF_EMPIRES_PROFILE=$name",   # self-reference so nested aoe spawns inherit the account
   "NODE_OPTIONS=",                    # blanks any inherited cmux --require shim
 ]
 EOF
-    echo "  CLAUDE_CONFIG_DIR=(default; forced empty)"
+    echo "  CLAUDE_CONFIG_DIR=(default; omitted/unset)"
   else
     cat > "$PROFILES_DIR/$name/config.toml" <<EOF
 # Managed by setup-profiles.sh — Claude account => CLAUDE_CONFIG_DIR mapping.
@@ -91,6 +95,19 @@ EOF
     [ -d "$cfgdir" ] || echo "  WARNING: $cfgdir does not exist — that account is not set up on this machine yet." >&2
   fi
 done
+
+# The default-config account relies on CLAUDE_CONFIG_DIR being genuinely unset,
+# but aoe sessions inherit the tmux SERVER's global env — clear any stale value
+# leaked there (e.g. by a cmux/Claude session) so it cannot bleed into a
+# default-account session. Harmless when no server is running or the var is
+# already unset; non-default profiles inject their own path per launch, so this
+# cannot misroute them.
+if command -v tmux >/dev/null 2>&1 && tmux info >/dev/null 2>&1; then
+  if tmux show-environment -g CLAUDE_CONFIG_DIR >/dev/null 2>&1; then
+    tmux set-environment -g -u CLAUDE_CONFIG_DIR
+    echo "cleared stale tmux global CLAUDE_CONFIG_DIR (default-account safety)"
+  fi
+fi
 
 aoe profile default "$DEFAULT_PROFILE" >/dev/null
 echo "default profile: $DEFAULT_PROFILE"
