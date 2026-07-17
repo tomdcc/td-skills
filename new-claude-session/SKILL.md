@@ -22,12 +22,12 @@ Start a new personal Claude session. Args: a session name, an optional directory
    **AoE** (default when installed — see the `aoe-session` skill for full detail and one-time profile setup): resolve the profile for the current account (match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` to a profile's `CLAUDE_CONFIG_DIR`, or `$AGENT_OF_EMPIRES_PROFILE`, or `--profile`), ensure the single daemon is up, then:
    ```
    if aoe url >/dev/null 2>&1; then :; else aoe serve --daemon; fi
-   aoe add "<directory>" -t "<name>" -p "<profile>" --cmd claude ${allow_remote:+--extra-args "--remote-control <name>"}
+   aoe add "<directory>" -t "<name>" -p "<profile>" -g "<group>" --cmd claude ${allow_remote:+--extra-args "--remote-control <name>"}
    aoe session start "<name>" -p "<profile>"
    # if a first-run trust prompt is showing (aoe session capture "<name>"), dismiss it before sending:
    aoe send "<name>" "<WARMUP-PROMPT>" -p "<profile>"
    ```
-   Include `--extra-args "--remote-control <name>"` **only when `allow_remote`**. Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Report the dashboard URL from `aoe url`.
+   Include `--extra-args "--remote-control <name>"` **only when `allow_remote`**. `-g "<group>"` files the session under its **base repo** (a `<base>-worktrees/…` path → `<base>`, else the directory basename — see the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```

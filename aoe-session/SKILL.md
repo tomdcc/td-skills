@@ -75,11 +75,27 @@ Precedence: explicit `--profile <name>` → else `$AGENT_OF_EMPIRES_PROFILE` if 
 
 `allow_remote` = `restrictions.allow_remote_control.allowed` from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` (true when the file is absent). Pass Claude's native `--remote-control` **only when `allow_remote`**.
 
+## Group (= base repo)
+
+Put every session in a group named after its **base repository**, so a repo's main checkout and all its worktree sessions cluster together (aoe otherwise defaults the group to the *parent folder* — which buckets by `…-worktrees`/`gradle` instead of the repo). Derive `<group>` from the session's directory and pass it as `-g "<group>"` on `aoe add`:
+
+- a worktree path `<base>-worktrees/…` → `<group>` is `<base>` (basename of the part before `-worktrees`) — e.g. `…/gradle/dv-release-worktrees/68205-…` → `dv-release`, `…/gradle/dv-main-worktrees/tomdcc/68783-…` → `dv-main`;
+- otherwise (a main checkout or plain dir) → `<group>` is the directory's basename — e.g. `…/gradle/dv-release` → `dv-release`, `…/code/blyt` → `blyt`, `…/scratch` → `scratch`.
+
+```sh
+case "$dir" in
+  *-worktrees/*) group=$(basename "${dir%%-worktrees/*}") ;;   # <base>-worktrees/… → <base>
+  *)             group=$(basename "$dir") ;;
+esac
+```
+
+Re-group an existing session with `aoe group move <title-or-id> <group> -p <profile>` (the group is auto-created).
+
 ## Launch — new session
 
 ```sh
-aoe add "<dir>" -t "<title>" -p "<profile>" --cmd claude \
-  ${allow_remote:+--extra-args "--remote-control <title>"}      # ONLY when allow_remote
+aoe add "<dir>" -t "<title>" -p "<profile>" -g "<group>" --cmd claude \
+  ${allow_remote:+--extra-args "--remote-control <title>"}      # ONLY when allow_remote; -g = base repo (see "Group")
 aoe session start "<title>" -p "<profile>"                       # detached, exit 0 (do NOT use -l: it attaches a TTY and errors headless)
 # deliver the warmup/initial prompt as a real message (NOT via --extra-args, which is whitespace-split into argv):
 aoe send "<title>" "<WARMUP-OR-INITIAL-PROMPT>" -p "<profile>"
@@ -98,7 +114,7 @@ aoe session start "<title-or-id>" -p "<profile>"
 ```
 Or pin a known session id onto a session you create:
 ```sh
-aoe add "<cwd>" -t "<title>" -p "<profile>" --cmd claude ${allow_remote:+--extra-args "--remote-control <title>"}
+aoe add "<cwd>" -t "<title>" -p "<profile>" -g "<group>" --cmd claude ${allow_remote:+--extra-args "--remote-control <title>"}
 aoe session set-session-id "<title>" "<session-id>" -p "<profile>"   # pin the resume target
 aoe session start "<title>" -p "<profile>"
 ```

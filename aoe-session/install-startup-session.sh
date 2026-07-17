@@ -79,10 +79,16 @@ if [ -f "\$CFG/policy-limits.json" ]; then
   allow_remote="\$(python3 -c 'import json,sys;print(1 if json.load(open(sys.argv[1])).get("restrictions",{}).get("allow_remote_control",{}).get("allowed",True) else 0)' "\$CFG/policy-limits.json" 2>/dev/null || echo 1)"
 fi
 
+# Group = base repo: a <base>-worktrees/… path → <base>, else the dir basename.
+case "\$DIR" in
+  *-worktrees/*) GROUP="\$(basename "\${DIR%%-worktrees/*}")" ;;
+  *)             GROUP="\$(basename "\$DIR")" ;;
+esac
+
 if [ "\$allow_remote" = "1" ]; then
-  aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" --cmd claude --extra-args "--remote-control \$NAME"
+  aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" -g "\$GROUP" --cmd claude --extra-args "--remote-control \$NAME"
 else
-  aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" --cmd claude
+  aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" -g "\$GROUP" --cmd claude
 fi
 aoe session start "\$NAME" -p "\$PROFILE"
 echo "started session '\$NAME' in \$DIR (profile \$PROFILE, remote_control=\$allow_remote)"

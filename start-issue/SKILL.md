@@ -56,12 +56,12 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
    **AoE** (default when installed — see the `aoe-session` skill for full detail and one-time profile setup): resolve the profile for the current account (match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` to a profile's `CLAUDE_CONFIG_DIR`, or `$AGENT_OF_EMPIRES_PROFILE`, or `--profile`), ensure the single daemon is up, then:
    ```
    if aoe url >/dev/null 2>&1; then :; else aoe serve --daemon; fi
-   aoe add "<worktree-path>" -t "<session-name>" -p "<profile>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"}
+   aoe add "<worktree-path>" -t "<session-name>" -p "<profile>" -g "<repo>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"}
    aoe session start "<session-name>" -p "<profile>"
    # if a first-run trust prompt is showing (aoe session capture "<session-name>"), dismiss it before sending:
    aoe send "<session-name>" "<INITIAL-PROMPT>" -p "<profile>"
    ```
-   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**. Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Pass the existing worktree as the positional path — do **not** add `-w` (that would make AoE create its own worktree). Report the dashboard URL from `aoe url`.
+   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**. `-g "<repo>"` files the session under its **base repo** so all its worktree sessions cluster together (the general rule is in the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Pass the existing worktree as the positional path — do **not** add `-w` (that would make AoE create its own worktree). Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```

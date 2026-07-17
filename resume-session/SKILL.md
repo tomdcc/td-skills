@@ -51,11 +51,11 @@ Args: an issue number or a description, plus an optional launcher flag (e.g. `/r
    **AoE** (default when installed — see the `aoe-session` skill): resolve the profile for the current account, ensure the single daemon is up, then create the session, pin the exact transcript id, and start it:
    ```
    if aoe url >/dev/null 2>&1; then :; else aoe serve --daemon; fi
-   aoe add "<cwd>" -t "<session-name>" -p "<profile>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"}
+   aoe add "<cwd>" -t "<session-name>" -p "<profile>" -g "<group>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"}
    aoe session set-session-id "<session-name>" "<session-id>" -p "<profile>"   # pin the exact conversation
    aoe session start "<session-name>" -p "<profile>"
    ```
-   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**; send no prompt. (`aoe session import "<cwd>" -p "<profile>"` is the scan-based alternative when you don't already have the exact id.) Report the dashboard URL from `aoe url`.
+   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**; send no prompt. `-g "<group>"` files the session under its **base repo**, derived from `<cwd>` (a `<base>-worktrees/…` path → `<base>`, else the directory basename — see the `aoe-session` skill). (`aoe session import "<cwd>" -p "<profile>"` is the scan-based alternative when you don't already have the exact id.) Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```
