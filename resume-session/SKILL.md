@@ -44,7 +44,7 @@ Args: an issue number or a description, plus an optional launcher flag (e.g. `/r
    - **Default = AoE** when `aoe` is installed (`command -v aoe`); pass `--remote-control` only if `allow_remote`.
    - **Fallback** (no `aoe`, or `--no-aoe`): `allow_remote` true → **tmux** (with `--remote-control`); false → **cmux** (no `--remote-control`).
 
-6. **Derive the session name** from the working directory's basename (e.g. `.../251-hybrid-native-gdb-reload` → `251-hybrid-native-gdb-reload`). If a live tmux/cmux session of that name already exists, suffix `-2`, `-3`, … so the relaunch doesn't collide.
+6. **Derive the session name.** For a **worktree** cwd, use its basename (e.g. `.../251-hybrid-native-gdb-reload` → `251-hybrid-native-gdb-reload`). For a **non-worktree** cwd (a main checkout / plain dir) the basename is just the repo — which is now the *group* (see the `aoe-session` skill), so it won't distinguish this session; instead coin a short meaningful title from the transcript's topic (the first user message gathered in step 3), e.g. a `dv-release` session about issue #67440 → `67440-status-check`. If the topic is genuinely unclear, ask the user for a title rather than guessing. If a live tmux/cmux session of the chosen name already exists, suffix `-2`, `-3`, … so the relaunch doesn't collide.
 
 7. **Launch, resuming the transcript.** Unlike new-claude-session, deliver **NO** warmup/initial prompt — the resume restores the prior context and the user picks up where they left off. Use the same runtime `CLAUDE_CONFIG_DIR` resolved in step 1.
 

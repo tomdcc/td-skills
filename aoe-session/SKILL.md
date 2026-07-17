@@ -91,6 +91,15 @@ esac
 
 Re-group an existing session with `aoe group move <title-or-id> <group> -p <profile>` (the group is auto-created).
 
+## Naming (= distinct purpose)
+
+The group is the base repo; the **title** must still distinguish this session from others in that group.
+
+- **Worktree session** → name it after the branch/issue (e.g. `68205-object-storage-grafana-use-tag`); already distinct.
+- **No own worktree** (a main checkout or plain dir) → do **not** fall back to the bare repo/dir name — that's now the *group*, so it neither distinguishes nor describes the session. If there's any clue to its purpose — an initial task, an issue number, the prompt about to be sent, a resumed transcript's first message — coin a short meaningful title from it (e.g. a `dv-release` main-checkout session doing a status check on #67440 → `67440-status-check`). If there's **no** clue at all, **ask the user** for a title rather than guessing.
+
+Keep titles short (they become the tmux session `aoe_<title>_<idprefix>` and, when remote control is on, the `--remote-control` name). Rename later with `aoe session rename <id-or-title> -t "<new-title>" -p <profile>` (also takes `-g` to re-group).
+
 ## Launch — new session
 
 ```sh

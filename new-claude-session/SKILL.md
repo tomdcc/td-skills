@@ -9,7 +9,7 @@ Start a new personal Claude session. Args: a session name, an optional directory
 
 ## Steps
 
-1. **Parse args**: the first word is the session name; if a path argument is present, it is the working directory; if no directory is given, use the current working directory. `--aoe`, `--no-aoe`, `--tmux`, and `--cmux` are flags, not positional args.
+1. **Parse args**: the first word is the session name; if a path argument is present, it is the working directory; if no directory is given, use the current working directory. `--aoe`, `--no-aoe`, `--tmux`, and `--cmux` are flags, not positional args. The name should convey the session's *purpose* — the group already carries the base repo (see the `aoe-session` skill), so for a directory without its own worktree don't settle for the bare repo/dir name; if the user gave no meaningful name and there's no purpose clue, ask what to call it.
 
 2. **Determine the launcher** (precedence: explicit flag → AoE default → tmux/cmux fallback):
    - First compute `allow_remote` = `restrictions.allow_remote_control.allowed` from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` (**true when the file is absent**). This gates Claude's native `--remote-control` in every branch below.
