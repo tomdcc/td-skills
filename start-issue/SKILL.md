@@ -5,15 +5,11 @@ description: Start a new worktree and Claude session for a GitHub issue. Default
 
 # Start Issue
 
-Set up a worktree and Claude session for a GitHub issue. The args are the issue number, an optional launcher flag, and an optional `--eager` flag (e.g. `/start-issue 42`, `/start-issue 42 --tmux --eager`, `/start-issue 42 --cmux`).
+Set up a worktree and Claude session for a GitHub issue. The args are the issue number, an optional launcher flag, an optional `--base <branch>` (the branch the worktree is cut from **and** the branch the PR must target — defaults to the repo's default branch), and an optional `--eager` flag (e.g. `/start-issue 42`, `/start-issue 42 --tmux --eager`, `/start-issue 42 --base host-lua --eager`).
 
 ## Steps
 
-1. **Update the base branch** — from the main checkout, pull the latest:
-   ```
-   git pull --ff-only
-   ```
-   If the pull fails (e.g. diverged), stop and report the problem rather than proceeding.
+1. **Resolve and update the base branch.** The **base branch** is both where the worktree is cut from *and* the branch the eventual PR must target — the two must be the same, or a squash-merge misfires. Resolve it: `--base <branch>` if given, else the repo's default branch (`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, usually `main`). **When this issue belongs to a long-lived integration branch (an epic branch such as `host-lua`), you MUST pass `--base <that-branch>` — do not let it default to `main`.** A branch cut from an integration branch but PR'd to `main` drags the *entire* integration branch onto `main` on squash-merge (a real incident: it dumped a whole epic onto `main` and needed a force-reset to recover). Then, from the main checkout, fetch and fast-forward that base: `git fetch origin <base-branch>` (plus `git pull --ff-only` when it is the checked-out branch). If it cannot fast-forward, stop and report rather than proceeding.
 
 2. **Fetch issue details** using `gh issue view <number> --json number,title` to get the title.
 
@@ -37,11 +33,11 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
 
 5. **Derive the repo name** from `git remote get-url origin` — extract just the repo name (the last path component, without `.git`).
 
-6. **Create the worktree** from the current repo root:
+6. **Create the worktree** from the current repo root, cut from the resolved base branch:
    ```
-   wtp add -b <branch-name> --quiet
+   wtp add -b <branch-name> origin/<base-branch> --quiet
    ```
-   Capture the output — it is the worktree path.
+   Always pass `origin/<base-branch>` explicitly, so the worktree is cut from the intended base rather than whatever the main checkout's HEAD happens to be. Capture the output — it is the worktree path.
 
 7. **Determine the launcher** (precedence: explicit flag → AoE default → tmux/cmux fallback):
    - First compute `allow_remote` = `restrictions.allow_remote_control.allowed` from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/policy-limits.json` (**true when the file is absent**). This gates Claude's native `--remote-control` in every branch below.
@@ -51,7 +47,7 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
 
 8. **Derive the session name**: use `<repo>-<branch-name>` if the total length is ≤40 characters, otherwise fall back to `<repo>-<number>`.
 
-9. **Launch a Claude session** according to the launcher, delivering the **initial prompt** (below). **Substitute the real issue number for `<number>`** in the prompt.
+9. **Launch a Claude session** according to the launcher, delivering the **initial prompt** (below). **Substitute the real issue number for `<number>` and the resolved base branch for `<base-branch>`** in the prompt.
 
    **AoE** (default when installed — see the `aoe-session` skill for full detail and one-time profile setup): resolve the profile for the current account (match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` to a profile's `CLAUDE_CONFIG_DIR`, or `$AGENT_OF_EMPIRES_PROFILE`, or `--profile`), ensure the single daemon is up, then:
    ```
@@ -79,7 +75,7 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
    **`<INITIAL-PROMPT>`** (keep it generic — do not hardcode a repo's build command. It runs the repo-provided `.claude/session-warmup` hook if present, so repos without the hook are unaffected):
 
    **Base prompt** (always used):
-   > Starting work on GitHub issue #<number>. Do these together: (1) Session warmup — if a file .claude/session-warmup exists in the current directory, start it in the background with a 10-minute (600000 ms) Bash timeout and surface its output; it builds this repo's test prerequisites so the test legs are not skipped. If the file does not exist, skip it silently. (2) While the warmup builds, read issue #<number> in full — run gh issue view <number> --comments for its body and discussion — and work to understand it, following any GitHub issues, PRs, ADRs, or design docs it references until you have a clear picture of the goal and the acceptance criteria. Once the warmup has finished and you understand the issue, summarise your understanding and the proposed approach, then stop and wait for instructions.
+   > Starting work on GitHub issue #<number>. Do these together: (1) Session warmup — if a file .claude/session-warmup exists in the current directory, start it in the background with a 10-minute (600000 ms) Bash timeout and surface its output; it builds this repo's test prerequisites so the test legs are not skipped. If the file does not exist, skip it silently. (2) While the warmup builds, read issue #<number> in full — run gh issue view <number> --comments for its body and discussion — and work to understand it, following any GitHub issues, PRs, ADRs, or design docs it references until you have a clear picture of the goal and the acceptance criteria. Once the warmup has finished and you understand the issue, summarise your understanding and the proposed approach, then stop and wait for instructions. When you eventually open a pull request for this issue, target base `<base-branch>` explicitly with `gh pr create --base <base-branch>` — this worktree was cut from `<base-branch>`, and `gh` defaults a PR's base to the repo's default branch unless you pass `--base`; a branch cut from an integration branch and squash-merged into the default branch drags the entire integration branch onto it. Verify the base is `<base-branch>` before merging.
 
    **Session-context paragraph** (append ONLY if the user chose "Include it in the initial instructions" in step 3): add a clearly-labelled paragraph carrying that context, e.g.:
    > Context from the session that launched you (factor this into your understanding and approach before implementing): <the held context text>.
@@ -90,6 +86,7 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
 10. **Report back** with:
     - The issue title and number
     - The branch name
+    - The **base branch** (what the worktree was cut from and what the PR must target — flag it explicitly when it is not the default branch)
     - The worktree path
     - How the step-3 context was handled (issue updated / folded into the initial prompt / proceeded without / — if nothing relevant was found, omit)
     - AoE: the profile/account used, whether `--remote-control` was passed, the dashboard URL (`aoe url`), and how to attach: `tmux attach -t aoe_<session-name>_<idprefix>` or `aoe`
