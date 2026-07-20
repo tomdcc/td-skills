@@ -27,7 +27,7 @@ Start a new personal Claude session. Args: a session name, an optional directory
    # if a first-run trust prompt is showing (aoe session capture "<name>"), dismiss it before sending:
    aoe send "<name>" "<WARMUP-PROMPT>" -p "<profile>"
    ```
-   Include `--extra-args "--remote-control <name>"` **only when `allow_remote`**. `-g "<group>"` files the session under its **base repo** (a `<base>-worktrees/…` path → `<base>`, else the directory basename — see the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Report the dashboard URL from `aoe url`.
+   Include `--extra-args "--remote-control <name>"` **only when `allow_remote`**. `-g "<group>"` files the session under its **base repo** (derived from the directory via git — see the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```

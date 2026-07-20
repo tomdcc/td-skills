@@ -79,11 +79,10 @@ if [ -f "\$CFG/policy-limits.json" ]; then
   allow_remote="\$(python3 -c 'import json,sys;print(1 if json.load(open(sys.argv[1])).get("restrictions",{}).get("allow_remote_control",{}).get("allowed",True) else 0)' "\$CFG/policy-limits.json" 2>/dev/null || echo 1)"
 fi
 
-# Group = base repo: a <base>-worktrees/… path → <base>, else the dir basename.
-case "\$DIR" in
-  *-worktrees/*) GROUP="\$(basename "\${DIR%%-worktrees/*}")" ;;
-  *)             GROUP="\$(basename "\$DIR")" ;;
-esac
+# Group = base repo: resolve via git (robust to any worktree layout — a linked
+# worktree's --git-common-dir points at the main checkout), else the dir basename.
+CD_COMMON="\$(git -C "\$DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+if [ -n "\$CD_COMMON" ]; then GROUP="\$(basename "\$(dirname "\$CD_COMMON")")"; else GROUP="\$(basename "\$DIR")"; fi
 
 if [ "\$allow_remote" = "1" ]; then
   aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" -g "\$GROUP" --cmd claude --extra-args "--remote-control \$NAME"

@@ -55,7 +55,7 @@ Args: an issue number or a description, plus an optional launcher flag (e.g. `/r
    aoe session set-session-id "<session-name>" "<session-id>" -p "<profile>"   # pin the exact conversation
    aoe session start "<session-name>" -p "<profile>"
    ```
-   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**; send no prompt. `-g "<group>"` files the session under its **base repo**, derived from `<cwd>` (a `<base>-worktrees/…` path → `<base>`, else the directory basename — see the `aoe-session` skill). (`aoe session import "<cwd>" -p "<profile>"` is the scan-based alternative when you don't already have the exact id.) Report the dashboard URL from `aoe url`.
+   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**; send no prompt. `-g "<group>"` files the session under its **base repo**, derived from `<cwd>` via git (see the `aoe-session` skill). (`aoe session import "<cwd>" -p "<profile>"` is the scan-based alternative when you don't already have the exact id.) Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```

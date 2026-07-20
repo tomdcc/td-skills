@@ -77,17 +77,16 @@ Precedence: explicit `--profile <name>` → else `$AGENT_OF_EMPIRES_PROFILE` if 
 
 ## Group (= base repo)
 
-Put every session in a group named after its **base repository**, so a repo's main checkout and all its worktree sessions cluster together (aoe otherwise defaults the group to the *parent folder* — which buckets by `…-worktrees`/`gradle` instead of the repo). Derive `<group>` from the session's directory and pass it as `-g "<group>"` on `aoe add`:
-
-- a worktree path `<base>-worktrees/…` → `<group>` is `<base>` (basename of the part before `-worktrees`) — e.g. `…/gradle/dv-release-worktrees/68205-…` → `dv-release`, `…/gradle/dv-main-worktrees/tomdcc/68783-…` → `dv-main`;
-- otherwise (a main checkout or plain dir) → `<group>` is the directory's basename — e.g. `…/gradle/dv-release` → `dv-release`, `…/code/blyt` → `blyt`, `…/scratch` → `scratch`.
+Put every session in a group named after its **base repository**, so a repo's main checkout and all its worktree sessions cluster together (aoe otherwise defaults the group to the *parent folder* — which buckets by `…-worktrees`/`gradle` instead of the repo). Derive `<group>` from the session's directory **via git** — a linked worktree's `--git-common-dir` points at the *main* checkout, whatever path the worktree lives under — falling back to the directory basename for a non-repo dir. Pass it as `-g "<group>"` on `aoe add`:
 
 ```sh
-case "$dir" in
-  *-worktrees/*) group=$(basename "${dir%%-worktrees/*}") ;;   # <base>-worktrees/… → <base>
-  *)             group=$(basename "$dir") ;;
-esac
+cd_common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if [ -n "$cd_common" ]; then group=$(basename "$(dirname "$cd_common")"); else group=$(basename "$dir"); fi
 ```
+
+Examples: `…/gradle/dv-release-worktrees/68205-…` and `…/gradle/dv-release` both → `dv-release`; `…/gradle/worktrees/versatility/rnett/…` (a dv-design-docs worktree that landed *outside* `dv-design-docs-worktrees/`) → `dv-design-docs`; `…/code/blyt` → `blyt`; a non-repo dir like `…/scratch` → `scratch`.
+
+> **Don't** string-match the path for `-worktrees/`. Worktrees don't always live under `<base>-worktrees/`: a missing per-repo `.wtp.yml` symlink sends `wtp` to its default `…/gradle/worktrees/<branch>`, which encodes no repo name — a path match would then mis-group the session. The git lookup is authoritative regardless of layout.
 
 Re-group an existing session with `aoe group move <title-or-id> <group> -p <profile>` (the group is auto-created).
 
