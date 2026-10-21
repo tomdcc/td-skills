@@ -99,8 +99,11 @@ cat > "$PLIST" <<EOF
         <false/>
     </dict>
 
+    <!-- Interactive, not Background: the tmux sessions this starts are for interactive use. Background QoS confines the
+         job, and everything it starts (the tmux server, its sessions, Gradle daemons and test JVMs), to the
+         efficiency cores, which made builds about 4x slower; Standard still applies light CPU and I/O limits. -->
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Interactive</string>
 
     <key>StandardOutPath</key>
     <string>$HOME/Library/Logs/aoe-serve.out.log</string>
