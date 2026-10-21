@@ -61,15 +61,22 @@ cat > "$PLIST" <<EOF
 
     <!-- Foreground \`aoe serve\` (NOT --daemon) so launchd owns the process and
          KeepAlive can supervise it. Foreground mode registers with
-         \`aoe url\` / \`aoe serve --status\` / \`aoe add\` exactly like --daemon. -->
+         \`aoe url\` / \`aoe serve --status\` / \`aoe add\` exactly like --daemon.
+
+         Wrapped in \`/bin/sh -c\` that FIRST clears any leaked CLAUDE_CONFIG_DIR
+         from the shared default tmux socket's GLOBAL environment. aoe sessions
+         inherit the tmux server-global env; a default-account (var-omitting)
+         profile would otherwise silently inherit a CLAUDE_CONFIG_DIR that a
+         cmux/Claude session left in the global, running under the wrong account
+         (see the aoe-session skill's leak gotcha). \`set-environment -g -u\` also
+         pre-creates the server from launchd's clean env, locking in a clean
+         global before any session launches. \`exec\` hands the PID to
+         \`aoe serve\` so KeepAlive still supervises the real daemon. -->
     <key>ProgramArguments</key>
     <array>
-        <string>$AOE_BIN</string>
-        <string>serve</string>
-        <string>--port</string>
-        <string>$PORT</string>
-        <string>--host</string>
-        <string>127.0.0.1</string>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>tmux set-environment -g -u CLAUDE_CONFIG_DIR 2>/dev/null || true; exec "$AOE_BIN" serve --port $PORT --host 127.0.0.1</string>
     </array>
 
     <!-- Clean, explicit env. Every aoe session inherits the daemon's

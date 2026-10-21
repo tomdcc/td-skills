@@ -56,6 +56,8 @@ Leave it running across sessions; do not stop it on exit. `aoe serve --stop` sto
 
 Control the agent: `launchctl kickstart -k gui/$(id -u)/com.tomdunstan.aoe-serve` (restart), `launchctl bootout gui/$(id -u)/com.tomdunstan.aoe-serve` (disable this session). It runs `aoe serve` in the **foreground** under launchd (not `--daemon`) so KeepAlive can supervise it; `KeepAlive.SuccessfulExit=false` restarts on crash but leaves a deliberate `aoe serve --stop` down. Logs: `~/Library/Logs/aoe-serve.{out,err}.log`.
 
+The plist wraps the start in `/bin/sh -c 'tmux set-environment -g -u CLAUDE_CONFIG_DIR …; exec aoe serve …'` so **every daemon (re)start clears any leaked `CLAUDE_CONFIG_DIR` from the shared default tmux socket's global env** — sessions inherit that global, and a var-omitting default-account profile would otherwise silently run under whatever config dir a cmux/Claude session left there (the leak gotcha above). `exec` keeps the daemon PID under KeepAlive. This is daemon-start hygiene, not a continuous guard: if something re-pollutes the global *after* start, re-clear it (`tmux set-environment -g -u CLAUDE_CONFIG_DIR`) or kickstart the agent. `setup-profiles.sh --verify` still flags a live leak.
+
 ### Standing session at login (per machine)
 
 `install-startup-session.sh` (in this skill dir) installs a per-machine LaunchAgent (`com.tomdunstan.aoe-session-<name>`) that, at each login, waits for the serve daemon then creates + starts one named session — aoe/tmux sessions don't survive a reboot, so it recreates it (idempotent: skipped if already present). The emitted runner + plist are machine-local (self-contained); only this installer is versioned.
