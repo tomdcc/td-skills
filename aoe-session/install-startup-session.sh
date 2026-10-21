@@ -11,11 +11,14 @@
 # Portable: machine-specific paths are resolved at runtime and the emitted
 # runner + plist are self-contained (independent of this repo's location).
 #
-# Usage:  ./install-startup-session.sh <session-name> <directory> [profile]
+# Usage:  ./install-startup-session.sh <session-name> [directory] [profile]
 #         ./install-startup-session.sh --uninstall <session-name>
 #
 #   session-name  aoe session title (also the --remote-control name)
-#   directory     cwd for the session (created if missing)
+#   directory     cwd for the session (created if missing). Omit, or pass "" to
+#                 set a profile, for the default ~/scratch/<profile>-claude-scratch,
+#                 so scratch sessions under different profiles (accounts) never
+#                 share a working dir.
 #   profile       aoe profile / Claude account (default: personal)
 set -euo pipefail
 
@@ -30,9 +33,9 @@ if [ "${1:-}" = "--uninstall" ]; then
   exit 0
 fi
 
-NAME="${1:?usage: $0 <session-name> <directory> [profile]}"
-DIR="${2:?usage: $0 <session-name> <directory> [profile]}"
+NAME="${1:?usage: $0 <session-name> [directory] [profile]}"
 PROFILE="${3:-personal}"
+DIR="${2:-$HOME/scratch/$PROFILE-claude-scratch}"
 LABEL="$AGENT_PREFIX-$NAME"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 RUNNER="$HOME/.agent-of-empires/startup-session-$NAME.sh"
@@ -64,8 +67,9 @@ mkdir -p "\$DIR"
 # Wait for the serve daemon (started by its own LaunchAgent) — up to ~60s.
 for _ in \$(seq 1 60); do aoe url >/dev/null 2>&1 && break; sleep 1; done
 
-# Idempotent: do nothing if a session of this name already exists.
-if aoe list --json -p "\$PROFILE" 2>/dev/null | grep -q "\"\$NAME\""; then
+# Idempotent: do nothing if a non-trashed session of this name already exists.
+# (\`aoe list --json\` includes trashed sessions; a trashed one must not block.)
+if aoe list --json -p "\$PROFILE" 2>/dev/null | python3 -c 'import json,sys;sys.exit(0 if any(s.get("title")==sys.argv[1] and s.get("state")!="trashed" for s in json.load(sys.stdin)) else 1)' "\$NAME"; then
   echo "session '\$NAME' already present — nothing to do"
   exit 0
 fi
@@ -81,15 +85,19 @@ fi
 
 # Group = base repo: resolve via git (robust to any worktree layout — a linked
 # worktree's --git-common-dir points at the main checkout), else the dir basename.
-CD_COMMON="\$(git -C "\$DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+CD_COMMON="\$(git -C "\$DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"  # not a repo: rev-parse exits 128, fatal under set -e
 if [ -n "\$CD_COMMON" ]; then GROUP="\$(basename "\$(dirname "\$CD_COMMON")")"; else GROUP="\$(basename "\$DIR")"; fi
 
 if [ "\$allow_remote" = "1" ]; then
-  aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" -g "\$GROUP" --cmd claude --extra-args "--remote-control \$NAME"
+  ADD_OUT="\$(aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" -g "\$GROUP" --cmd claude --extra-args "--remote-control \$NAME")"
 else
-  aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" -g "\$GROUP" --cmd claude
+  ADD_OUT="\$(aoe add "\$DIR" -t "\$NAME" -p "\$PROFILE" -g "\$GROUP" --cmd claude)"
 fi
-aoe session start "\$NAME" -p "\$PROFILE"
+echo "\$ADD_OUT"
+# Start by the new session's ID, not its title: a trashed session with the same
+# title makes \`aoe session start <title>\` fail ("session is in trash").
+ID="\$(printf '%s\n' "\$ADD_OUT" | awk '\$1 == "ID:" { print \$2; exit }')"
+aoe session start "\${ID:-\$NAME}" -p "\$PROFILE"
 echo "started session '\$NAME' in \$DIR (profile \$PROFILE, remote_control=\$allow_remote)"
 EOF
 chmod +x "$RUNNER"
