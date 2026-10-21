@@ -12,6 +12,9 @@
 #                                         # confirm CLAUDE_CONFIG_DIR is injected;
 #                                         # exits 1 if any profile fails
 #
+# It also points each account's settings.json statusLine at statusline.sh (in
+# this dir), labelled with the profile name; see STATUSLINE_COLOURS below.
+#
 # NOTE: this only wires the aoe profile -> config-dir mapping. It does NOT
 # authenticate the accounts (log in / copy credentials into those config dirs
 # per machine separately), and it does NOT encode remote-control on/off — the
@@ -29,6 +32,12 @@ PROFILES=(
 )
 DEFAULT_PROFILE="personal"
 
+# Status line label colour per profile, as ANSI SGR codes ("profile=code", space
+# separated). A profile not listed gets 36 (cyan). Set INSTALL_STATUSLINE=0 in
+# the machine-local file to leave every account's statusLine alone.
+STATUSLINE_COLOURS="personal=95 work=96"
+INSTALL_STATUSLINE=1
+
 # Machine-local override (kept OUT of the shared repo): if this file exists it
 # is sourced here and may redefine PROFILES / DEFAULT_PROFILE for this host.
 # Use the value "default" for an account that uses Claude's default config
@@ -45,6 +54,35 @@ fi
 
 command -v aoe >/dev/null || { echo "ERROR: aoe not found. Install with: brew install aoe" >&2; exit 1; }
 PROFILES_DIR="$HOME/.agent-of-empires/profiles"
+STATUSLINE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/statusline.sh"
+
+# Point an account's settings.json statusLine at statusline.sh, labelled with
+# the profile name. Only the statusLine key changes. The file is rewritten in
+# place rather than replaced, so its mode (the personal account's is 0600) and
+# a symlinked settings.json both survive.
+install_statusline() {
+  local name="$1" dir="$2" colour=36 pair settings cmd tmp
+  for pair in $STATUSLINE_COLOURS; do
+    [ "${pair%%=*}" = "$name" ] && colour="${pair#*=}"
+  done
+  if [ ! -d "$dir" ]; then
+    echo "  statusLine: skipped, $dir does not exist yet"
+    return
+  fi
+  command -v jq >/dev/null || { echo "  statusLine: skipped, jq not found" >&2; return; }
+  settings="$dir/settings.json"
+  [ -s "$settings" ] || echo '{}' > "$settings"
+  cmd="'$STATUSLINE_SCRIPT' $name $colour"
+  if [ "$(jq -r '.statusLine.command // empty' "$settings")" = "$cmd" ]; then
+    echo "  statusLine: up to date"
+    return
+  fi
+  tmp="$(mktemp)"
+  jq --arg cmd "$cmd" '.statusLine = {type: "command", command: $cmd}' "$settings" > "$tmp"
+  cat "$tmp" > "$settings"
+  rm -f "$tmp"
+  echo "  statusLine: installed in $settings"
+}
 
 for entry in "${PROFILES[@]}"; do
   name="${entry%%=*}"
@@ -94,6 +132,10 @@ environment = [
 EOF
     echo "  CLAUDE_CONFIG_DIR=$cfgdir"
     [ -d "$cfgdir" ] || echo "  WARNING: $cfgdir does not exist — that account is not set up on this machine yet." >&2
+  fi
+
+  if [ "$INSTALL_STATUSLINE" = 1 ]; then
+    case "$cfgdir" in default|"") install_statusline "$name" "$HOME/.claude" ;; *) install_statusline "$name" "$cfgdir" ;; esac
   fi
 done
 
