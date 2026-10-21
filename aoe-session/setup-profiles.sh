@@ -9,7 +9,8 @@
 #
 # Usage:  ./setup-profiles.sh            # create/refresh profiles
 #         ./setup-profiles.sh --verify   # also launch a probe per profile and
-#                                         # confirm CLAUDE_CONFIG_DIR is injected
+#                                         # confirm CLAUDE_CONFIG_DIR is injected;
+#                                         # exits 1 if any profile fails
 #
 # NOTE: this only wires the aoe profile -> config-dir mapping. It does NOT
 # authenticate the accounts (log in / copy credentials into those config dirs
@@ -120,12 +121,24 @@ if [ "${1:-}" = "--verify" ]; then
   echo "Verifying env injection (needs the serve daemon)..."
   aoe url >/dev/null 2>&1 || { echo "  no daemon — starting one for the check"; aoe serve --daemon >/dev/null 2>&1; sleep 2; }
 
+  # aoe >= 1.20 refuses to launch any host session until agent hooks are
+  # approved once per installation. Approval lets aoe write hooks into every
+  # agent's own config (e.g. each account's claude settings.json), so it is the
+  # user's call — report it rather than approving here. Older aoe has no
+  # `hooks` command and never prints "not approved".
+  if aoe hooks status 2>/dev/null | grep -q 'not approved'; then
+    echo "  ✗ aoe agent hooks are not approved, so no session can launch." >&2
+    echo "    Review \`aoe hooks status\`, then run \`aoe hooks approve\` and re-run --verify." >&2
+    exit 1
+  fi
+
   tmp="$(mktemp -d)"
   probe="$tmp/probe.sh"
   printf '#!/bin/sh\necho "$CLAUDE_CONFIG_DIR" > "%s/last.out"\n' "$tmp" > "$probe"
   chmod +x "$probe"
 
   set +e
+  failed=0
   for entry in "${PROFILES[@]}"; do
     name="${entry%%=*}"; cfgdir="${entry#*=}"; t="verify-$name"
     # default-config account: CLAUDE_CONFIG_DIR is intentionally unset, so the
@@ -133,12 +146,24 @@ if [ "${1:-}" = "--verify" ]; then
     case "$cfgdir" in default|"") expect="" ;; *) expect="$cfgdir" ;; esac
     rm -f "$tmp/last.out"
     aoe add --scratch -t "$t" -p "$name" --cmd-override "$probe" </dev/null >/dev/null 2>&1
-    aoe session start "$t" -p "$name" </dev/null >/dev/null 2>&1
+    # Keep start's output: when the launch itself is refused (e.g. hooks not
+    # approved) the probe never runs, and this is the only place the reason shows.
+    start_err="$(aoe session start "$t" -p "$name" </dev/null 2>&1)"
     sleep 2
     got="$(cat "$tmp/last.out" 2>/dev/null || echo '<none>')"
-    if [ "$got" = "$expect" ]; then echo "  ✓ $name -> ${got:-(default; CLAUDE_CONFIG_DIR unset)}"; else echo "  ✗ $name -> got '$got', expected '${expect:-(unset)}'"; fi
+    if [ "$got" = "$expect" ]; then
+      echo "  ✓ $name -> ${got:-(default; CLAUDE_CONFIG_DIR unset)}"
+    else
+      echo "  ✗ $name -> got '$got', expected '${expect:-(unset)}'"
+      [ "$got" = "<none>" ] && [ -n "$start_err" ] && printf '%s\n' "$start_err" | sed 's/^/      /'
+      failed=$((failed + 1))
+    fi
     aoe rm "$t" -p "$name" --purge </dev/null >/dev/null 2>&1
   done
   set -e
   rm -rf "$tmp"
+  if [ "$failed" -gt 0 ]; then
+    echo "Verification FAILED for $failed profile(s)." >&2
+    exit 1
+  fi
 fi

@@ -7,7 +7,7 @@ description: Reference for launching/resuming Claude sessions via Agent of Empir
 
 Agent of Empires (`aoe`) is the default launcher for `new-claude-session`, `start-issue`, and `resume-session`. AoE is tmux-backed (sessions are real `aoe_<title>_<idprefix>` tmux sessions), so the discovery/verification logic of those skills is unchanged — only the launch step differs, and sessions additionally appear on AoE's web/mobile dashboard. This file is the canonical description of the AoE launch flow and its one-time setup; the three skills carry a concise inline copy and point here.
 
-Verified on this machine, **aoe 1.12.1**, host (non-sandbox) sessions.
+Verified on this machine, **aoe 1.12.1**, host (non-sandbox) sessions. Setup also verified on **aoe 1.20.0**, which adds a one-time hooks approval (see "Agent hooks approval" below).
 
 ## One-time setup: one aoe profile per Claude account
 
@@ -69,7 +69,11 @@ The plist wraps the start in `/bin/sh -c 'tmux set-environment -g -u CLAUDE_CONF
 
 The **profile defaults to `personal`**, so each machine's standing session runs under that machine's `personal` account — the default-config account on a single-account host, or `~/.claude-personal` on a two-account host — no per-machine edit needed. The runner reads that profile's `CLAUDE_CONFIG_DIR` (or the default) to decide `--remote-control` from `policy-limits.json`, exactly like the launch flow. Pick a machine-identifying `<session-name>` (e.g. `imac-scratch`, `<host>-scratch`). The session comes up idle (no prompt); its cwd's first-run "trust this folder?" is a one-time confirm that then persists.
 
-**Bringing up a fresh machine:** (1) `brew install aoe tmux`; (2) `./install-daemon.sh`; (3) `./setup-profiles.sh --verify` to create the per-account profiles (drop a machine-local `~/.agent-of-empires/skill-profiles.conf` if the accounts differ from the default table — use `<name>=default` for the default-config account) — the daemon alone is inert without them; (4) authenticate each account (`claude` login; the default account's token lives in the login Keychain and is read directly); (5) `./install-startup-session.sh <host>-scratch "$HOME/scratch"` to add a standing scratch session under the `personal` profile.
+**Bringing up a fresh machine:** (1) `brew install aoe tmux`; (2) `./install-daemon.sh`; (2a) on aoe ≥ 1.20, `aoe hooks approve` after the user confirms (see "Agent hooks approval" below); (3) `./setup-profiles.sh --verify` to create the per-account profiles (drop a machine-local `~/.agent-of-empires/skill-profiles.conf` if the accounts differ from the default table — use `<name>=default` for the default-config account) — the daemon alone is inert without them; (4) authenticate each account (`claude` login; the default account's token lives in the login Keychain and is read directly); (5) `./install-startup-session.sh <host>-scratch "$HOME/scratch"` to add a standing scratch session under the `personal` profile.
+
+### Agent hooks approval (aoe ≥ 1.20, per installation)
+
+aoe 1.20+ refuses to launch any host session until agent hooks are approved: `aoe session start` fails with `agent hook paths have not been approved; run \`aoe hooks approve\` before launching this host session`. Approval lets aoe write status hooks (running/waiting/idle) and session-id hooks (needed for native resume) into **each agent's own config**: for Claude, every profile's `settings.json` (e.g. `~/.claude-personal/settings.json`, `~/.claude/settings.json`). It is one approval for every agent and profile, and also covers Codex/Cursor/Gemini/Kiro/etc. configs (Kiro: may set its default agent). The hooks are no-ops outside aoe sessions (guarded by `$AOE_INSTANCE_ID`). Review with `aoe hooks status`, then `aoe hooks approve`. Because it edits the user's agent configs, **confirm with the user before approving** — scripts here never approve on their own; `setup-profiles.sh --verify` checks for it and stops with a pointer.
 
 ## Resolve the profile (= account)
 
