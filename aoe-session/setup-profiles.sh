@@ -38,6 +38,11 @@ DEFAULT_PROFILE="personal"
 STATUSLINE_COLOURS="personal=95 work=96"
 INSTALL_STATUSLINE=1
 
+# Turn off Claude's commit/PR attribution (Co-Authored-By trailer, "Generated
+# with Claude Code" PR footer, session URL) in every account's settings.json.
+# Set INSTALL_NO_ATTRIBUTION=0 in the machine-local file to leave it alone.
+INSTALL_NO_ATTRIBUTION=1
+
 # Machine-local override (kept OUT of the shared repo): if this file exists it
 # is sourced here and may redefine PROFILES / DEFAULT_PROFILE for this host.
 # Use the value "default" for an account that uses Claude's default config
@@ -82,6 +87,31 @@ install_statusline() {
   cat "$tmp" > "$settings"
   rm -f "$tmp"
   echo "  statusLine: installed in $settings"
+}
+
+# Blank the commit and PR attribution in an account's settings.json, and set the
+# older includeCoAuthoredBy flag too for builds that predate `attribution`.
+# Other keys under `attribution` are kept. Rewritten in place, like the
+# statusLine above.
+NO_ATTRIBUTION_JQ='.attribution = ((.attribution // {}) + {commit: "", pr: "", sessionUrl: false}) | .includeCoAuthoredBy = false'
+install_no_attribution() {
+  local dir="$1" settings tmp
+  if [ ! -d "$dir" ]; then
+    echo "  attribution: skipped, $dir does not exist yet"
+    return
+  fi
+  command -v jq >/dev/null || { echo "  attribution: skipped, jq not found" >&2; return; }
+  settings="$dir/settings.json"
+  [ -s "$settings" ] || echo '{}' > "$settings"
+  if jq -e "($NO_ATTRIBUTION_JQ) == ." "$settings" >/dev/null; then
+    echo "  attribution: already off"
+    return
+  fi
+  tmp="$(mktemp)"
+  jq "$NO_ATTRIBUTION_JQ" "$settings" > "$tmp"
+  cat "$tmp" > "$settings"
+  rm -f "$tmp"
+  echo "  attribution: turned off in $settings"
 }
 
 for entry in "${PROFILES[@]}"; do
@@ -136,6 +166,9 @@ EOF
 
   if [ "$INSTALL_STATUSLINE" = 1 ]; then
     case "$cfgdir" in default|"") install_statusline "$name" "$HOME/.claude" ;; *) install_statusline "$name" "$cfgdir" ;; esac
+  fi
+  if [ "$INSTALL_NO_ATTRIBUTION" = 1 ]; then
+    case "$cfgdir" in default|"") install_no_attribution "$HOME/.claude" ;; *) install_no_attribution "$cfgdir" ;; esac
   fi
 done
 

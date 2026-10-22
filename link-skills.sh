@@ -39,6 +39,13 @@ links_into_repo() {
   [ -L "$1" ] && case "$(readlink "$1")" in "$REPO"/*) true ;; *) false ;; esac
 }
 
+# Use the repo's tracked hooks (.githooks/commit-msg rejects attribution
+# trailers). Git never copies hooks on clone, so each checkout opts in here.
+if [ "$uninstall" = 0 ] && [ "$(git -C "$REPO" config --get core.hooksPath)" != .githooks ]; then
+  git -C "$REPO" config core.hooksPath .githooks
+  echo "git hooks: core.hooksPath set to .githooks"
+fi
+
 for cfg in "${CONFIG_DIRS[@]}"; do
   if [ ! -d "$cfg" ]; then
     echo "$cfg: skipped, does not exist" >&2

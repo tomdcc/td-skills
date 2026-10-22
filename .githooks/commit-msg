@@ -1,0 +1,23 @@
+#!/bin/sh
+# Reject any commit message mentioning "claude" (case-insensitive).
+#
+# Purpose: catch auto-appended attribution/session trailers
+# (Claude-Session:, Co-Authored-By: Claude, "Generated with Claude Code",
+# or any future variant) LOUDLY rather than silently stripping them — so a
+# trailer in a slightly different format becomes a visible failure to fix,
+# not a silent surprise that lands in history.
+#
+# Fail-loud by design: a legitimate message that genuinely needs the word
+# "claude" must be reworded, or bypass this once with `git commit --no-verify`.
+
+msg_file="$1"
+
+# Ignore comment lines (git strips them anyway) when scanning.
+if grep -v '^#' "$msg_file" | grep -iq 'claude'; then
+	echo "commit-msg: rejected — message contains 'claude' (case-insensitive)." >&2
+	echo "This repo blocks Claude attribution/session trailers. Remove the line and recommit" >&2
+	echo "(or 'git commit --no-verify' to bypass intentionally)." >&2
+	exit 1
+fi
+
+exit 0
