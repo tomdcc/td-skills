@@ -152,6 +152,21 @@ if command -v tmux >/dev/null 2>&1 && tmux info >/dev/null 2>&1; then
   fi
 fi
 
+# tmux's stock 2000-line scrollback is only a few minutes of agent output. This
+# script doesn't own ~/.tmux.conf (it lives in github.com/tomdcc/dotfiles), so
+# it only prints a hint when the limit hasn't been raised.
+tmux_conf=""
+for f in "$HOME/.tmux.conf" "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf"; do
+  [ -e "$f" ] && { tmux_conf="$f"; break; }
+done
+history_limit=""
+[ -n "$tmux_conf" ] && history_limit="$(grep -E '^[[:space:]]*set(-option)?[[:space:]].*history-limit[[:space:]]+[0-9]+' "$tmux_conf" | awk '{print $NF}' | tail -1 || true)"
+if [ "${history_limit:-0}" -lt 10000 ]; then
+  echo "HINT: tmux scrollback is ${history_limit:-the default 2000} lines; agent output soon scrolls off." >&2
+  echo "      Set 'set-option -g history-limit 50000' in ~/.tmux.conf, or run install.sh from" >&2
+  echo "      github.com/tomdcc/dotfiles." >&2
+fi
+
 aoe profile default "$DEFAULT_PROFILE" >/dev/null
 echo "default profile: $DEFAULT_PROFILE"
 echo
