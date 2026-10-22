@@ -52,12 +52,14 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
    **AoE** (default when installed — see the `aoe-session` skill for full detail and one-time profile setup): resolve the profile for the current account (match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` to a profile's `CLAUDE_CONFIG_DIR`, or `$AGENT_OF_EMPIRES_PROFILE`, or `--profile`), ensure the single daemon is up, then:
    ```
    if aoe url >/dev/null 2>&1; then :; else aoe serve --daemon; fi
-   aoe add "<worktree-path>" -t "<session-name>" -p "<profile>" -g "<repo>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"}
-   aoe session start "<session-name>" -p "<profile>"
-   # if a first-run trust prompt is showing (aoe session capture "<session-name>"), dismiss it before sending:
-   aoe send "<session-name>" "<INITIAL-PROMPT>" -p "<profile>"
+   id=$(aoe add "<worktree-path>" -t "<session-name>" -p "<profile>" -g "<repo>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"} | awk '$1 == "ID:" { print $2 }')
+   aoe session start "$id" -p "<profile>"
+   # tmux name: do NOT build it from the title (aoe shortens long titles); match the ID prefix
+   tmux_sess=$(tmux ls -F '#S' | grep -- "_${id:0:8}\$")
+   # if a first-run trust prompt is showing (aoe session capture "$id" -p "<profile>"), dismiss it before sending (see aoe-session "Trust-prompt gotcha"):
+   aoe send "$id" "<INITIAL-PROMPT>" -p "<profile>"
    ```
-   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**. `-g "<repo>"` files the session under its **base repo** so all its worktree sessions cluster together (the general rule is in the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Pass the existing worktree as the positional path — do **not** add `-w` (that would make AoE create its own worktree). Report the dashboard URL from `aoe url`.
+   Address the session by **`$id`**, not its title: a title can match a trashed or duplicate session. Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**. `-g "<repo>"` files the session under its **base repo** so all its worktree sessions cluster together (the general rule is in the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Pass the existing worktree as the positional path — do **not** add `-w` (that would make AoE create its own worktree). Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```
@@ -89,6 +91,6 @@ Set up a worktree and Claude session for a GitHub issue. The args are the issue 
     - The **base branch** (what the worktree was cut from and what the PR must target — flag it explicitly when it is not the default branch)
     - The worktree path
     - How the step-3 context was handled (issue updated / folded into the initial prompt / proceeded without / — if nothing relevant was found, omit)
-    - AoE: the profile/account used, whether `--remote-control` was passed, the dashboard URL (`aoe url`), and how to attach: `tmux attach -t aoe_<session-name>_<idprefix>` or `aoe`
+    - AoE: the profile/account used, whether `--remote-control` was passed, the dashboard URL (`aoe url`), and how to attach: `tmux attach -t "$tmux_sess"` (the resolved name from step 9, not one built from the title) or `aoe -p <profile>`
     - tmux: the session name and how to attach: `tmux attach -t <session-name>`
     - cmux: the session name

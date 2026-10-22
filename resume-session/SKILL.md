@@ -51,11 +51,13 @@ Args: an issue number or a description, plus an optional launcher flag (e.g. `/r
    **AoE** (default when installed — see the `aoe-session` skill): resolve the profile for the current account, ensure the single daemon is up, then create the session, pin the exact transcript id, and start it:
    ```
    if aoe url >/dev/null 2>&1; then :; else aoe serve --daemon; fi
-   aoe add "<cwd>" -t "<session-name>" -p "<profile>" -g "<group>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"}
-   aoe session set-session-id "<session-name>" "<session-id>" -p "<profile>"   # pin the exact conversation
-   aoe session start "<session-name>" -p "<profile>"
+   id=$(aoe add "<cwd>" -t "<session-name>" -p "<profile>" -g "<group>" --cmd claude ${allow_remote:+--extra-args "--remote-control <session-name>"} | awk '$1 == "ID:" { print $2 }')
+   aoe session set-session-id "$id" "<session-id>" -p "<profile>"   # pin the exact conversation
+   aoe session start "$id" -p "<profile>"
+   # tmux name: do NOT build it from the title (aoe shortens long titles); match the ID prefix
+   tmux_sess=$(tmux ls -F '#S' | grep -- "_${id:0:8}\$")
    ```
-   Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**; send no prompt. `-g "<group>"` files the session under its **base repo**, derived from `<cwd>` via git (see the `aoe-session` skill). (`aoe session import "<cwd>" -p "<profile>"` is the scan-based alternative when you don't already have the exact id.) Report the dashboard URL from `aoe url`.
+   Address the session by **`$id`** (aoe's session ID, not the Claude `<session-id>`), not its title: a title can match a trashed or duplicate session. Include `--extra-args "--remote-control <session-name>"` **only when `allow_remote`**; send no prompt. `-g "<group>"` files the session under its **base repo**, derived from `<cwd>` via git (see the `aoe-session` skill). (`aoe session import "<cwd>" -p "<profile>"` is the scan-based alternative when you don't already have the exact id.) Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```
@@ -73,6 +75,6 @@ Args: an issue number or a description, plus an optional launcher flag (e.g. `/r
 8. **Report back** with:
    - Which session was resumed (id + a one-line summary of its first user message) and why it was chosen
    - The working directory
-   - AoE: the profile/account used, whether `--remote-control` was passed, the dashboard URL (`aoe url`), and how to attach: `tmux attach -t aoe_<session-name>_<idprefix>` or `aoe`
+   - AoE: the profile/account used, whether `--remote-control` was passed, the dashboard URL (`aoe url`), and how to attach: `tmux attach -t "$tmux_sess"` (resolved from the ID, not built from the title) or `aoe -p <profile>`
    - tmux: the session name and how to attach: `tmux attach -t <session-name>`
    - cmux: the workspace name

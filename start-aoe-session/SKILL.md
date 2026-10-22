@@ -52,11 +52,11 @@ It is **start** and **restart** in one: a `Stopped`/`Error` session is started; 
 6. **Handle the first-run trust prompt.** A first-run/untrusted folder shows *"Is this a project you trust?"* before the prompt, and it **swallows the first `aoe send`**. Pure resume needs no send, so it is usually harmless — but if you intend to send an initial message, capture first (`aoe session capture "<id>" -p <profile>`) and only send once past the prompt. Do **not** auto-accept a trust prompt whose scope is broader than the worktree (e.g. `/Users/tom`) — that is the signal the cwd was wrong (step 3); surface it instead.
 
 7. **Verify it came up** (don't assume):
-   - tmux alive: `tmux has-session -t aoe_<title>_<idprefix>`.
+   - tmux alive: resolve the name from the ID — aoe shortens long titles, so never build it from the title — `tmux_sess=$(tmux ls -F '#S' | grep -- "_${id:0:8}\$")`, then `tmux has-session -t "$tmux_sess"` (an empty `$tmux_sess` means it is not running).
    - Pane is not dead and does **not** show `No conversation found` — capture the pane (`aoe session capture "<id>" -p <profile>` or `tmux capture-pane -p`). If it shows `No conversation found` / `Pane is dead`, the pre-flight missed something — re-check steps 3–4 (cwd present? pinned id on disk?) rather than restarting blindly.
    - `Status` returns to `Idle`, and the pane shows the resumed history.
 
-8. **Report back:** the session name/id, that it resumed **in place** (same group, same worktree, history intact — or, if the bucket was empty, that it came up fresh), and how to attach (`tmux attach -t aoe_<title>_<idprefix>` or `aoe -p <profile>`). Note any repair you had to do (recreated worktree, re-pinned resume target).
+8. **Report back:** the session name/id, that it resumed **in place** (same group, same worktree, history intact — or, if the bucket was empty, that it came up fresh), and how to attach (`tmux attach -t "$tmux_sess"`, resolved from the ID as in step 7, or `aoe -p <profile>`). Note any repair you had to do (recreated worktree, re-pinned resume target).
 
 ## One-liner
 

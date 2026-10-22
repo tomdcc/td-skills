@@ -29,7 +29,9 @@ Contrast with the destructive alternatives — do not use these if the goal is "
 
 2. **Capture the process tree BEFORE stopping** (so stragglers can be verified and cleaned). Find the tmux session and its pane pid, then record all descendant PIDs — flag the MCP ones:
    ```sh
-   sess=$(tmux ls 2>/dev/null | grep -i "<title-or-idprefix>" | cut -d: -f1)
+   id=$(aoe session show "<id-or-title>" -p "<profile>" | awk '$1 == "ID:" { print $2 }')
+   # match the ID prefix: aoe shortens long titles in the tmux name, so a title grep can miss or match several
+   sess=$(tmux ls -F '#S' 2>/dev/null | grep -- "_${id:0:8}\$")
    pane_pid=$(tmux list-panes -t "$sess" -F '#{pane_pid}' | head -1)
    # record $pane_pid and its descendants; MCP children match: mcp, mcp-proxy, gt-headroom, mermaid, develocity, server-*
    ```
@@ -49,7 +51,7 @@ Contrast with the destructive alternatives — do not use these if the goal is "
 5. **Report back:**
    - The session name/id and that it is **stopped but still in the AoE list** (restartable).
    - That the Claude process was terminated and its MCP servers were torn down (plus any stragglers you had to clean up).
-   - How to resume: `aoe session start "<title>" -p "<profile>"` (it resumes the same conversation, subject to the resume-target caveats in the `aoe-session` skill).
+   - How to resume: `aoe session start "<id>" -p "<profile>"` (it resumes the same conversation, subject to the resume-target caveats in the `aoe-session` skill).
 
 ## One-liner
 

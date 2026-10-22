@@ -22,12 +22,14 @@ Start a new personal Claude session. Args: a session name, an optional directory
    **AoE** (default when installed — see the `aoe-session` skill for full detail and one-time profile setup): resolve the profile for the current account (match `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` to a profile's `CLAUDE_CONFIG_DIR`, or `$AGENT_OF_EMPIRES_PROFILE`, or `--profile`), ensure the single daemon is up, then:
    ```
    if aoe url >/dev/null 2>&1; then :; else aoe serve --daemon; fi
-   aoe add "<directory>" -t "<name>" -p "<profile>" -g "<group>" --cmd claude ${allow_remote:+--extra-args "--remote-control <name>"}
-   aoe session start "<name>" -p "<profile>"
-   # if a first-run trust prompt is showing (aoe session capture "<name>"), dismiss it before sending:
-   aoe send "<name>" "<WARMUP-PROMPT>" -p "<profile>"
+   id=$(aoe add "<directory>" -t "<name>" -p "<profile>" -g "<group>" --cmd claude ${allow_remote:+--extra-args "--remote-control <name>"} | awk '$1 == "ID:" { print $2 }')
+   aoe session start "$id" -p "<profile>"
+   # tmux name: do NOT build it from the title (aoe shortens long titles); match the ID prefix
+   tmux_sess=$(tmux ls -F '#S' | grep -- "_${id:0:8}\$")
+   # if a first-run trust prompt is showing (aoe session capture "$id" -p "<profile>"), dismiss it before sending (see aoe-session "Trust-prompt gotcha"):
+   aoe send "$id" "<WARMUP-PROMPT>" -p "<profile>"
    ```
-   Include `--extra-args "--remote-control <name>"` **only when `allow_remote`**. `-g "<group>"` files the session under its **base repo** (derived from the directory via git — see the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Report the dashboard URL from `aoe url`.
+   Address the session by **`$id`**, not its title: a title can match a trashed or duplicate session. Include `--extra-args "--remote-control <name>"` **only when `allow_remote`**. `-g "<group>"` files the session under its **base repo** (derived from the directory via git — see the `aoe-session` skill). Deliver the prompt via `aoe send` (not `--extra-args`, which is whitespace-split). Report the dashboard URL from `aoe url`.
 
    **tmux** (with remote control):
    ```
@@ -48,6 +50,6 @@ Start a new personal Claude session. Args: a session name, an optional directory
 
 4. **Report back** with:
    - The session name (and, for AoE, the profile/account used and whether `--remote-control` was passed)
-   - AoE: the dashboard URL (`aoe url`) and how to attach: `tmux attach -t aoe_<name>_<idprefix>` or `aoe`
+   - AoE: the dashboard URL (`aoe url`) and how to attach: `tmux attach -t "$tmux_sess"` (resolved from the ID, not built from the title) or `aoe -p <profile>`
    - tmux: how to attach: `tmux attach -t <name>`
    - cmux: the workspace name

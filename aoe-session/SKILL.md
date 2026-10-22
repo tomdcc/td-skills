@@ -104,21 +104,22 @@ The group is the base repo; the **title** must still distinguish this session fr
 - **Worktree session** → name it after the branch/issue (e.g. `68205-object-storage-grafana-use-tag`); already distinct.
 - **No own worktree** (a main checkout or plain dir) → do **not** fall back to the bare repo/dir name — that's now the *group*, so it neither distinguishes nor describes the session. If there's any clue to its purpose — an initial task, an issue number, the prompt about to be sent, a resumed transcript's first message — coin a short meaningful title from it (e.g. a `dv-release` main-checkout session doing a status check on #67440 → `67440-status-check`). If there's **no** clue at all, **ask the user** for a title rather than guessing.
 
-Keep titles short (they become the tmux session `aoe_<title>_<idprefix>` and, when remote control is on, the `--remote-control` name). Rename later with `aoe session rename <id-or-title> -t "<new-title>" -p <profile>` (also takes `-g` to re-group).
+Keep titles short (they become the tmux session `aoe_<title>_<idprefix>`, with long titles cut short — see "Launch — new session" — and, when remote control is on, the `--remote-control` name). Rename later with `aoe session rename <id-or-title> -t "<new-title>" -p <profile>` (also takes `-g` to re-group).
 
 ## Launch — new session
 
 ```sh
-aoe add "<dir>" -t "<title>" -p "<profile>" -g "<group>" --cmd claude \
-  ${allow_remote:+--extra-args "--remote-control <title>"}      # ONLY when allow_remote; -g = base repo (see "Group")
-aoe session start "<title>" -p "<profile>"                       # detached, exit 0 (do NOT use -l: it attaches a TTY and errors headless)
+id=$(aoe add "<dir>" -t "<title>" -p "<profile>" -g "<group>" --cmd claude \
+  ${allow_remote:+--extra-args "--remote-control <title>"} | awk '$1 == "ID:" { print $2 }')   # ONLY when allow_remote; -g = base repo (see "Group")
+aoe session start "$id" -p "<profile>"                          # detached, exit 0 (do NOT use -l: it attaches a TTY and errors headless)
+tmux_sess=$(tmux ls -F '#S' | grep -- "_${id:0:8}\$")           # never build it from the title (see below)
 # deliver the warmup/initial prompt as a real message (NOT via --extra-args, which is whitespace-split into argv):
-aoe send "<title>" "<WARMUP-OR-INITIAL-PROMPT>" -p "<profile>"
+aoe send "$id" "<WARMUP-OR-INITIAL-PROMPT>" -p "<profile>"
 ```
 
 - `<dir>` as a positional path is used **only as cwd** — an existing `wtp` worktree is not hijacked (verified: worktree/branch untouched, no new branch). Pass `-w/--worktree <branch>` only if you *want* AoE to create the worktree.
-- **Trust-prompt gotcha:** a first-run/untrusted folder makes claude show "Is this a project you trust?" *before* its input, and that dialog **swallows the first `aoe send`** (verified). Real worktrees are usually already trusted. Defensive: after `session start`, `aoe session capture <title>` (or `tmux capture-pane -t aoe_<title>_<idprefix> -p`); if the trust prompt is showing, dismiss it (`tmux send-keys -t <tmux-sess> Enter`) before `aoe send`. `aoe add -y/--yolo` skips permission prompts but is broader than needed.
-- `aoe add` prints a machine-readable `ID:`; the tmux session is `aoe_<title>_<idprefix>` — verify with `tmux has-session`.
+- **Trust-prompt gotcha:** a first-run/untrusted folder makes claude show "Is this a project you trust?" *before* its input, and that dialog **swallows the first `aoe send`** (verified). Real worktrees are usually already trusted. Defensive: after `session start`, `aoe session capture "$id" -p <profile>`; if the trust prompt is showing, dismiss it before `aoe send`. **The highlighted default is "No, exit", so a bare Enter quits claude**: select "Yes, I trust this folder" first (`tmux send-keys -t "$tmux_sess" Down`, capture to confirm the `❯` is on it, then `Enter`). If the prompt also lists pre-approved permissions or commands the folder runs (from its `.claude/settings.json` or `.mcp.json`), ask the user before accepting. `aoe add -y/--yolo` skips permission prompts but is broader than needed.
+- `aoe add` prints a machine-readable `ID:` — capture it and address the session by ID (`aoe session start/send/capture "$id"`), since a title can also match a trashed or duplicate session. The tmux session is `aoe_<title>_<idprefix>`, but aoe **shortens long titles** (`dv-75927-drv-sync-dashboard` → `aoe_dv-75927-drv-sync-da_1c32de9e`; observed: cut to 20 characters), so never build the name from the title: resolve it from the ID, `tmux_sess=$(tmux ls -F '#S' | grep -- "_${id:0:8}\$")`, and verify with `tmux has-session -t "$tmux_sess"`. Check it is non-empty: `tmux send-keys -t ""` silently targets the most recent session.
 
 ## Launch — resume
 
@@ -141,7 +142,7 @@ Spawning a child is just a Bash call to `aoe add`/`session start` from inside a 
 
 ## Reporting
 
-Report: profile (account) + dashboard URL (`aoe url`); the title + `ID:` + backing tmux session; how to reach it — dashboard URL, `tmux attach -t aoe_<title>_<idprefix>`, or `aoe` (TUI).
+Report: profile (account) + dashboard URL (`aoe url`); the title + `ID:` + backing tmux session; how to reach it — dashboard URL, `tmux attach -t "$tmux_sess"` (resolved from the ID, not built from the title), or `aoe -p <profile>` (TUI).
 
 ## Proven end-to-end
 
